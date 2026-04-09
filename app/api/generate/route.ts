@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `You are a social media content expert for Cuemath, an ed-tech company. Generate a ${format} based on the user's idea. Return ONLY a valid JSON array with exactly 6 slides. Each slide must have: "slideNumber" (number), "title" (short, punchy, max 8 words), "body" (2-3 sentences, engaging and parent-friendly). First slide is a hook, slides 2-5 are content, slide 6 is a CTA. Return raw JSON array only, absolutely no markdown, no backticks, no explanation.`
+          content: `You are a social media content expert for Cuemath, an ed-tech company. Generate a ${format} based on the user's idea. Return ONLY a valid JSON array with exactly 6 slides. Each slide must have: "slideNumber" (number), "title" (short, punchy, max 8 words), "body" (2-3 sentences, engaging and parent-friendly), "imagePrompt" (a vivid 8-10 word visual description for AI image generation, no text or words in the image). First slide is hook, slides 2-5 are content, slide 6 is CTA. Return raw JSON array only, absolutely no markdown, no backticks, no explanation.`
         },
         {
           role: "user",

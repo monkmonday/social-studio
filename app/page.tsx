@@ -5,6 +5,7 @@ interface Slide {
   slideNumber: number;
   title: string;
   body: string;
+  imagePrompt?: string;
 }
 
 const gradients = [
@@ -18,6 +19,13 @@ const gradients = [
 
 const formats = ["Carousel", "Instagram Post", "Story"];
 
+function getImageUrl(prompt: string, index: number) {
+  const encoded = encodeURIComponent(
+    `${prompt}, vibrant, modern, educational, no text, high quality`
+  );
+  return `https://image.pollinations.ai/prompt/${encoded}?width=400&height=400&nologo=true&seed=${index * 42}`;
+}
+
 export default function Home() {
   const [idea, setIdea] = useState("");
   const [slides, setSlides] = useState<Slide[]>([]);
@@ -25,12 +33,14 @@ export default function Home() {
   const [error, setError] = useState("");
   const [format, setFormat] = useState("Carousel");
   const [copied, setCopied] = useState<number | null>(null);
+  const [loadedImages, setLoadedImages] = useState<Record<number, boolean>>({});
 
   const generate = async () => {
     if (!idea.trim()) return;
     setLoading(true);
     setError("");
     setSlides([]);
+    setLoadedImages({});
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -58,6 +68,21 @@ export default function Home() {
       .map((s) => `Slide ${s.slideNumber}: ${s.title}\n${s.body}`)
       .join("\n\n---\n\n");
     navigator.clipboard.writeText(text);
+  };
+
+  const downloadImage = async (imageUrl: string, slideNumber: number) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `slide-${slideNumber}.jpg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download failed", e);
+    }
   };
 
   return (
@@ -89,7 +114,11 @@ export default function Home() {
                     : "bg-gray-800 text-gray-400 hover:text-white"
                 }`}
               >
-                {f === "Carousel" ? "🎠 Carousel" : f === "Instagram Post" ? "📸 Post" : "📱 Story"}
+                {f === "Carousel"
+                  ? "🎠 Carousel"
+                  : f === "Instagram Post"
+                  ? "📸 Post"
+                  : "📱 Story"}
               </button>
             ))}
           </div>
@@ -97,13 +126,7 @@ export default function Home() {
           <textarea
             className="w-full bg-gray-800 rounded-xl p-4 text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg"
             rows={4}
-            placeholder={
-              format === "Carousel"
-                ? "e.g. Carousel for parents about why kids forget what they learn — explain the forgetting curve"
-                : format === "Instagram Post"
-                ? "e.g. Single post about the importance of daily math practice for kids"
-                : "e.g. Story about 3 signs your child is ready for advanced math"
-            }
+            placeholder="e.g. Carousel for parents about why kids forget what they learn — explain the forgetting curve"
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
           />
@@ -145,30 +168,78 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {slides.map((slide, i) => (
-                <div
-                  key={i}
-                  className={`bg-gradient-to-br ${gradients[i % gradients.length]} p-1 rounded-2xl`}
-                >
-                  <div className="bg-gray-900 rounded-2xl p-6 h-full flex flex-col justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                        Slide {slide.slideNumber}
-                      </span>
-                      <h3 className="text-xl font-bold mt-2 mb-3 text-white">
-                        {slide.title}
-                      </h3>
-                      <p className="text-gray-300 leading-relaxed">{slide.body}</p>
+              {slides.map((slide, i) => {
+                const imageUrl = getImageUrl(
+                  slide.imagePrompt || slide.title,
+                  i
+                );
+                return (
+                  <div
+                    key={i}
+                    className={`bg-gradient-to-br ${gradients[i % gradients.length]} p-1 rounded-2xl`}
+                  >
+                    <div className="rounded-2xl overflow-hidden bg-gray-900 flex flex-col">
+
+                      {/* Image on top */}
+                      <div className="relative h-48 w-full">
+                        <img
+                          src={imageUrl}
+                          alt={slide.title}
+                          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+                            loadedImages[i] ? "opacity-100" : "opacity-0"
+                          }`}
+                          onLoad={() =>
+                            setLoadedImages((prev) => ({ ...prev, [i]: true }))
+                          }
+                        />
+                        {!loadedImages[i] && (
+                          <div
+                            className={`absolute inset-0 bg-gradient-to-br ${gradients[i % gradients.length]} animate-pulse flex items-center justify-center`}
+                          >
+                            <div className="text-center">
+                              <div className="text-2xl mb-2">🎨</div>
+                              <span className="text-white/60 text-xs">
+                                Generating image...
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {/* Slide number badge */}
+                        <span className="absolute top-3 left-3 text-xs font-bold text-white bg-black/50 px-2 py-1 rounded-lg uppercase tracking-widest">
+                          Slide {slide.slideNumber}
+                        </span>
+                      </div>
+
+                      {/* Text below image */}
+                      <div className="p-5 flex flex-col flex-1">
+                        <h3 className="text-lg font-bold mb-2 text-white">
+                          {slide.title}
+                        </h3>
+                        <p className="text-gray-300 text-sm leading-relaxed flex-1">
+                          {slide.body}
+                        </p>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => copySlide(slide, i)}
+                            className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm text-white transition-all"
+                          >
+                            {copied === i ? "✅ Copied!" : "📋 Copy"}
+                          </button>
+                          <button
+                            onClick={() =>
+                              downloadImage(imageUrl, slide.slideNumber)
+                            }
+                            className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm text-white transition-all"
+                          >
+                            ⬇️ Save
+                          </button>
+                        </div>
+                      </div>
+
                     </div>
-                    <button
-                      onClick={() => copySlide(slide, i)}
-                      className="mt-4 w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm text-gray-400 hover:text-white transition-all"
-                    >
-                      {copied === i ? "✅ Copied!" : "📋 Copy Slide"}
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
